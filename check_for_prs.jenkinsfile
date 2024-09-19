@@ -40,7 +40,7 @@ pipeline {
                             returnStdout: true
                         )
                         echo pr_branch.find(/[A-Za-z]+/)
-                        build job: 'gingko_test', parameters: [string(name: 'BRANCH', value: pr_branch.find(/[A-Za-z]+/))]
+                        build job: 'test_build_push_image', parameters: [string(name: 'BRANCH', value: pr_branch.find(/[A-Za-z]+/))]
                         sh 'mv pull-list.json old-pull-list.json'
                     } else {
                         echo "NO NEW PR FOUND"
