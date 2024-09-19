@@ -22,36 +22,35 @@ pipeline {
                         """
                     )
                     
-                    // EXTRACT LAST PR NUMBER FROM PREVIOUS JOB
-		    def oldVersionExists = fileExists 'old-pull-list.json'
-
-		    if (oldVersionExists) {
-		        def old_version = sh (
-				returnStdout: true,
-			        script: """
-					sed -n '3p' old-pull-list.json |  grep -o -P '(?<=pulls/).*(?=")'
-				"""
-			)
-
-			 echo "PR NUMBER IN OLD FILE IS " + old_version
-
-		    } else {
-                      sh "touch old-pull-list.json"
-		    }                    
-
-                    echo "PR NUMBER IN NEW FILE IS " + new_version
+                            // EXTRACT LAST PR NUMBER FROM PREVIOUS JOB
+                    def oldVersionExists = fileExists 'old-pull-list.json'
                     
-                    // COMPARE THE NEW AND OLD PR NUMBERS AND IF A NEW PR EXISTS - RUN TEST JOB
-                    if (new_version.toInteger() > old_version.toInteger()) {
-                        def pr_branch = sh (
-                            script: "jq '.[0].head.ref' pull-list.json",
-                            returnStdout: true
+                    if (oldVersionExists) {
+                        def old_version = sh (
+                            returnStdout: true,
+                            script: """
+                                sed -n '3p' old-pull-list.json |  grep -o -P '(?<=pulls/).*(?=")'
+                            """
                         )
-                        echo pr_branch.find(/[A-Za-z]+/)
-                        build job: 'test_build_push_image', parameters: [string(name: 'BRANCH', value: pr_branch.find(/[A-Za-z]+/))]
-                        sh 'mv pull-list.json old-pull-list.json'
+            
+                        echo "PR NUMBER IN OLD FILE IS " + old_version
+                        echo "PR NUMBER IN NEW FILE IS " + new_version
+                        
+                        // COMPARE THE NEW AND OLD PR NUMBERS AND IF A NEW PR EXISTS - RUN TEST JOB
+                        if (new_version.toInteger() > old_version.toInteger()) {
+                            def pr_branch = sh (
+                                script: "jq '.[0].head.ref' pull-list.json",
+                                returnStdout: true
+                            )
+                            echo pr_branch.find(/[A-Za-z]+/)
+                            build job: 'test_build_push_image', parameters: [string(name: 'BRANCH', value: pr_branch.find(/[A-Za-z]+/))]
+                            sh 'mv pull-list.json old-pull-list.json'
+                        } else {
+                            echo "NO NEW PR FOUND"
+                        }
+        
                     } else {
-                        echo "NO NEW PR FOUND"
+                              sh "touch old-pull-list.json"
                     }
                 }
             }
