@@ -164,7 +164,8 @@ pipeline {
                             """.stripIndent()
                         )
                         sh "go test"
-                        sh "cd .. && sed -i 's\\localhost\\0.0.0.0\\g' main.go && cat main.go"
+
+                        sh "cd .. && sed -i 's\\localhost\\0.0.0.0\\g' main.go"
                     }
                 }
             }
