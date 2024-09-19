@@ -14,8 +14,7 @@ pipeline {
         stage('Git Checkout') {
             steps {
                 git(
-                    // branch: params.BRANCH,
-                    branch: 'master',
+                    branch: params.BRANCH,
                     url: 'https://github.com/nenov92/simple-go-service.git'
                 )
             }
