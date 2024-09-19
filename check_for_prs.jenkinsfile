@@ -36,7 +36,7 @@ pipeline {
 			 echo "PR NUMBER IN OLD FILE IS " + old_version
 
 		    } else {
-                      sh "old-pull-list.json"
+                      sh "touch old-pull-list.json"
 		    }                    
 
                     echo "PR NUMBER IN NEW FILE IS " + new_version
