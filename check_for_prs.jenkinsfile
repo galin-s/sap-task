@@ -22,10 +22,9 @@ pipeline {
                         """
                     )
                     
-                            // EXTRACT LAST PR NUMBER FROM PREVIOUS JOB
-                    def oldVersionExists = fileExists 'old-pull-list.json'
-                    
-                    if (oldVersionExists) {
+                    // TRY-CATCH BECAUSE IF THE PIPELINE IS TRIGGERED FOR FIRST TIME - THERE IS NO old-pull-list.json WHICH ABORTS THE JOB
+                    try {
+                        // EXTRACT LAST PR NUMBER FROM PREVIOUS JOB
                         def old_version = sh (
                             returnStdout: true,
                             script: """
@@ -44,14 +43,13 @@ pipeline {
                             )
                             echo pr_branch.find(/[A-Za-z]+/)
                             build job: 'test_build_push_image', parameters: [string(name: 'BRANCH', value: pr_branch.find(/[A-Za-z]+/))]
-                            sh 'mv pull-list.json old-pull-list.json'
                         } else {
                             echo "NO NEW PR FOUND"
                         }
-        
-                    } else {
-                              sh "touch old-pull-list.json"
+                    } catch (Exception e) {
+                        echo 'Exception occurred: ' + e.toString()
                     }
+                    sh 'mv pull-list.json old-pull-list.json'
                 }
             }
         }
