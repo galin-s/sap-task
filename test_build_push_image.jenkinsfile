@@ -1,0 +1,211 @@
+pipeline {
+    agent any
+    
+    tools {
+        go '1.23.1'
+    }
+    
+    environment {
+        IMAGE_NAME = 'go-service'
+        IMAGE_TAG = 'latest'
+    }
+    
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git(
+                    // branch: params.BRANCH,
+                    branch: 'master',
+                    url: 'https://github.com/nenov92/simple-go-service.git'
+                )
+            }
+        }
+        
+        stage ('Run tests') {
+            steps {
+                dir("cmd/simple-go-service/internal") {
+                    script {
+                        sh "rm presenter.go presenter_test.go"
+                        writeFile(
+                            file: "presenter.go", 
+                            text: """\
+                                package internal
+    
+                                import (
+					"fmt"
+					"net/http"
+					"time"
+                                
+					"github.com/gin-gonic/gin"
+					"github.com/sirupsen/logrus"
+                                )
+                                
+                                type Presenter struct {
+                                }
+                                
+                                func NewPresenter() *Presenter {
+					return &Presenter{}
+                                }
+                                
+                                type SuccessfulResponse struct {
+					Message Message `json:"success"`
+                                }
+                                
+                                type Message struct {
+					Message string `json:"message"`
+                                }
+                                
+                                type ErrorRespose struct {
+					Message Message `json:"error"`
+                                }
+                                
+                                func NewBadRequestResponse() ErrorRespose {
+					return ErrorRespose{
+						Message: Message{http.StatusText(http.StatusBadRequest)},
+					}
+                                }
+                                
+                                func NewSuccessfulResponse() SuccessfulResponse {
+					return SuccessfulResponse{
+						Message: Message{http.StatusText(http.StatusOK)},
+					}
+                                }
+                                
+                                func (p *Presenter) GetData(ctx *gin.Context) {
+                                    ifModifiedSince := ctx.GetHeader("If-Modified-Since")
+                                    fmt.Println("HEADER: ", ifModifiedSince)
+                                    
+                                    var lastModified time.Time
+                                    var err error
+                                    if ifModifiedSince != "" {
+                                        lastModified, err = http.ParseTime(ifModifiedSince)
+                                        if err != nil {
+                                            logrus.Errorf("Problem parsing If-Modified-Since header: %v", err)
+                                            ctx.JSON(http.StatusBadRequest, NewBadRequestResponse())
+                                            return
+                                        }
+                                    }
+                                
+                                    if !lastModified.IsZero() {
+                                        fmt.Println(lastModified)
+                                    }
+                                
+                                    ctx.Header("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+                                
+                                    ctx.JSON(http.StatusOK, NewSuccessfulResponse())
+                                }
+                            """.stripIndent()
+                        )
+                        
+                        
+                        writeFile(
+                            file: "presenter_test.go", 
+                            text: """\
+                                package internal_test
+        
+                                import (
+                                    "net/http"
+                                    "net/http/httptest"
+                                    "time"
+                                
+                                    internal "github.com/nenov92/simple-go-service/cmd/simple-go-service/internal"
+                                    "github.com/gin-gonic/gin"
+                                    . "github.com/onsi/ginkgo"
+                                    . "github.com/onsi/gomega"
+                                )
+                                
+                                var _ = Describe("Presenter", func() {
+                                
+                                    var presenter *internal.Presenter
+                                    var recorder *httptest.ResponseRecorder
+                                    var mockContext *gin.Context
+                                
+                                    BeforeEach(func() {
+                                        presenter = internal.NewPresenter()
+                                        recorder = httptest.NewRecorder()
+                                        mockContext, _ = gin.CreateTestContext(recorder)
+                                        mockContext.Request = httptest.NewRequest("GET", "/v1/data", nil)
+                                    })
+                                
+                                    Describe("Get Data", func() {
+                                        When("Get Data is called with proper If-Modified-Since Header", func() {
+                                            It("should return a data list with JSON Content-Type and Status OK", func() {
+                                                // Set a valid If-Modified-Since header
+                                                mockContext.Request.Header.Set("If-Modified-Since", time.Now().UTC().Format(http.TimeFormat))
+                                                presenter.GetData(mockContext)
+                                
+                                                Expect(mockContext.Writer.Status()).To(Equal(http.StatusOK))
+                                                Expect(mockContext.Writer.Header().Get("Content-Type")).To(Equal("application/json; charset=utf-8"))
+                                            })
+                                        })
+                                
+                                        When("Get Data is called without If-Modified-Since Header", func() {
+                                            It("should return a data list with JSON Content-Type and Status OK", func() {
+                                                // No If-Modified-Since header set
+                                                presenter.GetData(mockContext)
+                                
+                                                Expect(mockContext.Writer.Status()).To(Equal(http.StatusOK))
+                                                Expect(mockContext.Writer.Header().Get("Content-Type")).To(Equal("application/json; charset=utf-8"))
+                                            })
+                                        })
+                                
+                                        When("Get Data is called with an invalid If-Modified-Since Header", func() {
+                                            It("should return Status BadRequest", func() {
+                                                // Set an invalid If-Modified-Since header
+                                                mockContext.Request.Header.Set("If-Modified-Since", "InvalidHeaderValue")
+                                                presenter.GetData(mockContext)
+                                
+                                                Expect(mockContext.Writer.Status()).To(Equal(http.StatusBadRequest))
+                                                Expect(mockContext.Writer.Header().Get("Content-Type")).To(Equal("application/json; charset=utf-8"))
+                                            })
+                                        })
+                                    })
+                                })
+                            """.stripIndent()
+                        )
+                        sh "go test"
+                        sh "cd .. && sed -i 's\\localhost\\0.0.0.0\\g' main.go && cat main.go"
+                    }
+                }
+            }
+        }
+        
+        stage ('Create Dockerfile') {
+            steps {
+                script {
+                    sh """
+                        echo 'FROM golang:1.15.6-alpine3.12\nCOPY . /opt\nWORKDIR /opt/cmd/simple-go-service\nRUN go build -o simple-go-service\nEXPOSE 8080\nENTRYPOINT ["go", "run", "."]' > Dockerfile
+                    """
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("galins/go-service:latest")
+                }
+            }
+        }
+        
+        stage('Push Docker Image Dockerhub') {
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
+                        docker.image("galins/go-service:latest").push("latest")
+                    }
+                }
+            }  
+        }
+    }
+    
+    post { 
+        always { 
+            script {
+                sh 'docker rmi registry.hub.docker.com/galins/go-service:latest || true'
+                sh 'docker rmi galins/go-service:latest || true'
+                cleanWs()
+            }
+        }
+    }
+}
