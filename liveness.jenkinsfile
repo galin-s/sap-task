@@ -1,0 +1,27 @@
+pipeline {
+    agent any
+    
+    triggers {
+        cron('* * * * *')
+    }
+    
+    stages {
+        stage('Ok') {
+            steps {
+                sh "curl -X GET http://192.168.49.2:30007/v1/data"
+            }
+        }
+    }
+    post {
+         always {
+            script {
+                if (currentBuild.result == "FAILURE") {
+                    emailext subject: 'test',
+                    body: 'BUILD FAILED',
+                    replyTo: 'none@none.com',
+                    to: 'galin.stef@abv.bg'
+                }
+            }
+        }
+    }
+}

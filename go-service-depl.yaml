@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-service-deployment
+  labels:
+    app: go-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-service
+  template:
+    metadata:
+      labels:
+        app: go-service
+    spec:
+      containers:
+      - name: go-service
+        image: registry.hub.docker.com/galins/go-service:latest
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /v1/data
+            port: 8080
+          periodSeconds: 300
+          failureThreshold: 3
