@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: go-service-deployment
+  namespace: default
   labels:
     app: {{ .Values.labels.deployment }}
 spec:
@@ -34,6 +35,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: default
   name: {{ .Values.names.svc }}
 spec:
   type: NodePort
