@@ -1,0 +1,13 @@
+project: default
+source:
+  repoURL: 'https://github.com/galin-s/sap-task.git'
+  path: go-service-chart
+  targetRevision: HEAD
+  helm:
+    valueFiles:
+      - values.yaml
+destination:
+  server: 'https://kubernetes.default.svc'
+  namespace: default
+syncPolicy:
+  automated: {}
